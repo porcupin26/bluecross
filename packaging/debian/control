@@ -4,11 +4,10 @@ Priority: optional
 Maintainer: Porcupin
 Build-Depends: debhelper-compat (= 13),
                dh-python,
+               pybuild-plugin-pyproject,
                python3-all,
-               python3-setuptools,
                python3-hatchling,
-               python3-pip,
-               python3-build
+               python3-pip
 Standards-Version: 4.6.2
 Homepage: https://github.com/kzapolski/bluecross
 Rules-Requires-Root: no
