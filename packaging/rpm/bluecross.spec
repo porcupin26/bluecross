@@ -13,8 +13,12 @@ BuildRequires:  python3-pip
 BuildRequires:  python3-hatchling
 BuildRequires:  pyproject-rpm-macros
 
+# Disable automatic dependency generation (pynput is not packaged in Fedora)
+AutoReqProv:    no
+
 Requires:       python3 >= 3.10
 Requires:       python3-evdev >= 1.6.0
+Requires:       python3-pip
 
 Recommends:     wl-clipboard
 Suggests:       xclip
@@ -58,6 +62,9 @@ install -D -m 644 systemd/bluecross-client.service \
 install -D -m 644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 
 %post
+# Install pynput (not available in Fedora repos)
+pip3 install --quiet pynput>=1.7.6 || :
+
 # Reload udev rules
 udevadm control --reload-rules || :
 udevadm trigger --subsystem-match=misc --attr-match=name=uinput || :
