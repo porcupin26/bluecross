@@ -81,7 +81,11 @@ jobs:
 
       - name: Test package installation
         run: |
-          sudo dpkg -i dist/*.deb || sudo apt-get install -f -y
+          if [ -n "${{ matrix.container }}" ]; then
+            dpkg -i dist/*.deb || apt-get install -f -y
+          else
+            sudo dpkg -i dist/*.deb || sudo apt-get install -f -y
+          fi
           which bluecross-server
           which bluecross-client
           which bluecrossctl
