@@ -10,8 +10,8 @@ Source0:        %{name}-%{version}.tar.gz
 BuildArch:      noarch
 BuildRequires:  python3-devel
 BuildRequires:  python3-pip
-BuildRequires:  python3-setuptools
 BuildRequires:  python3-hatchling
+BuildRequires:  python3-build
 
 Requires:       python3 >= 3.10
 Requires:       python3-evdev >= 1.6.0
@@ -35,10 +35,10 @@ Features include:
 %autosetup -n %{name}-%{version}
 
 %build
-%py3_build
+%pyproject_wheel
 
 %install
-%py3_install
+%pyproject_install
 
 # Install udev rules
 install -D -m 644 packaging/udev/99-bluecross-uinput.rules \
