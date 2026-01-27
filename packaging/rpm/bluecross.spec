@@ -11,7 +11,7 @@ BuildArch:      noarch
 BuildRequires:  python3-devel
 BuildRequires:  python3-pip
 BuildRequires:  python3-hatchling
-BuildRequires:  python3-build
+BuildRequires:  pyproject-rpm-macros
 
 Requires:       python3 >= 3.10
 Requires:       python3-evdev >= 1.6.0
