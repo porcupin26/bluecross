@@ -1,0 +1,36 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Reload udev rules to activate the new uinput rule
+        if command -v udevadm > /dev/null 2>&1; then
+            udevadm control --reload-rules || true
+            udevadm trigger --subsystem-match=misc --attr-match=name=uinput || true
+        fi
+        
+        echo ""
+        echo "BlueCross has been installed successfully!"
+        echo ""
+        echo "Post-installation steps:"
+        echo "  1. Add your user to the 'input' group:"
+        echo "     sudo usermod -aG input \$USER"
+        echo ""
+        echo "  2. Log out and back in (or reboot) for group changes to take effect"
+        echo ""
+        echo "  3. Copy the example config to your user config directory:"
+        echo "     mkdir -p ~/.config/bluecross"
+        echo "     cp /usr/share/bluecross/bluecross.json.example ~/.config/bluecross/bluecross.json"
+        echo ""
+        echo "  4. Edit the configuration file for your setup"
+        echo ""
+        echo "  5. (Optional) Install systemd user services:"
+        echo "     cp /usr/share/bluecross/systemd/*.service ~/.config/systemd/user/"
+        echo "     systemctl --user daemon-reload"
+        echo ""
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

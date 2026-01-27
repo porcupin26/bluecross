@@ -1,0 +1,18 @@
+[project]
+name = "bluecross"
+version = "0.1.0"
+description = "Share keyboard and mouse across computers over network"
+requires-python = ">=3.10"
+dependencies = [
+    "evdev>=1.6.0",
+    "pynput>=1.7.6",
+]
+
+[project.scripts]
+bluecross-server = "bluecross.server:run"
+bluecross-client = "bluecross.client:run"
+bluecrossctl = "bluecross.ctl:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

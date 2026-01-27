@@ -1,0 +1,3 @@
+# BlueCross udev rules for /dev/uinput access
+# Allows users in the 'input' group to use virtual input devices
+KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"

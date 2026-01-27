@@ -1,0 +1,19 @@
+[Unit]
+Description=BlueCross Server - Keyboard/Mouse Sharing
+Documentation=https://github.com/yourusername/bluecross
+After=network.target graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/bluecross
+ExecStart=%h/.local/bin/uv run bluecross-server -f -c %h/.config/bluecross/bluecross.json
+Restart=on-failure
+RestartSec=5
+
+# Environment variables for display access
+Environment=DISPLAY=:0
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+
+[Install]
+WantedBy=graphical-session.target
