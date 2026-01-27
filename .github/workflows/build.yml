@@ -36,10 +36,9 @@ jobs:
               build-essential \
               debhelper \
               dh-python \
+              pybuild-plugin-pyproject \
               python3-all \
-              python3-setuptools \
               python3-pip \
-              python3-build \
               python3-hatchling \
               python3-evdev \
               devscripts \
@@ -50,10 +49,9 @@ jobs:
               build-essential \
               debhelper \
               dh-python \
+              pybuild-plugin-pyproject \
               python3-all \
-              python3-setuptools \
               python3-pip \
-              python3-build \
               python3-hatchling \
               python3-evdev \
               devscripts \
