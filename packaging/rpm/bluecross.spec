@@ -42,7 +42,7 @@ Features include:
 
 # Install udev rules
 install -D -m 644 packaging/udev/99-bluecross-uinput.rules \
-    %{buildroot}%{_udevrulesdir}/99-bluecross-uinput.rules
+    %{buildroot}/usr/lib/udev/rules.d/99-bluecross-uinput.rules
 
 # Install example config
 install -D -m 644 bluecross.json \
@@ -94,7 +94,7 @@ udevadm control --reload-rules || :
 %{_bindir}/bluecross-server
 %{_bindir}/bluecross-client
 %{_bindir}/bluecrossctl
-%{_udevrulesdir}/99-bluecross-uinput.rules
+/usr/lib/udev/rules.d/99-bluecross-uinput.rules
 %{_datadir}/%{name}/
 
 %changelog
