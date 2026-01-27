@@ -1,7 +1,7 @@
 Source: bluecross
 Section: utils
 Priority: optional
-Maintainer: BlueCross Developers <bluecross@example.com>
+Maintainer: Porcupin
 Build-Depends: debhelper-compat (= 13),
                dh-python,
                python3-all,

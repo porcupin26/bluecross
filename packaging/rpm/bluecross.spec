@@ -98,5 +98,5 @@ udevadm control --reload-rules || :
 %{_datadir}/%{name}/
 
 %changelog
-* Sun Jan 26 2025 BlueCross Developers <bluecross@example.com> - 0.1.0-1
+* Sun Jan 26 2025 Porcupin - 0.1.0-1
 - Initial release

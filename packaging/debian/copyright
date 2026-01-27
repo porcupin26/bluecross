@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: bluecross
-Upstream-Contact: BlueCross Developers <bluecross@example.com>
+Upstream-Contact: Porcupin
 Source: https://github.com/kzapolski/bluecross
 
 Files: *
