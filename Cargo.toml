@@ -1,0 +1,29 @@
+[package]
+name = "bluecross"
+version = "0.1.0"
+edition = "2021"
+description = "Share keyboard, mouse and clipboard across Linux/Wayland computers over the network"
+license = "MIT"
+repository = "https://github.com/porcupin26/bluecross"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+evdev = { version = "0.12", features = ["tokio"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+log = { version = "0.4", features = ["std"] }
+anyhow = "1"
+libc = "0.2"
+# Encrypted + mutually-authenticated transport (Noise protocol, pre-shared key)
+snow = "0.9"
+sha2 = "0.10"
+# TCP keepalive configuration for dead-peer detection
+socket2 = { version = "0.5", features = ["all"] }
+# Screen-size detection output parsing
+regex = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true

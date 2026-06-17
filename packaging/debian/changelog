@@ -1,5 +1,7 @@
 bluecross (0.1.0-1) unstable; urgency=medium
 
-  * Initial release.
+  * Wayland-only release.
+  * Encrypted, PSK-authenticated network transport (Noise protocol).
+  * systemd user services auto-restart on package upgrade.
 
- -- Porcupin <porcupin@localhost>  Sun, 26 Jan 2025 00:00:00 +0000
+ -- Porcupin <porcupin26@proton.me>  Wed, 17 Jun 2026 00:00:00 +0000

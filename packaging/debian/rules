@@ -1,21 +1,40 @@
 #!/usr/bin/make -f
 
 export DH_VERBOSE = 1
-export PYBUILD_NAME = bluecross
 
 %:
-	dh $@ --with python3 --buildsystem=pybuild
+	dh $@
+
+override_dh_auto_build:
+	cargo build --release
 
 override_dh_auto_install:
-	dh_auto_install
+	# Install binary
+	install -D -m 755 target/release/bluecross \
+		debian/bluecross/usr/bin/bluecross
+	# Create symlinks for backward compatibility
+	ln -sf bluecross debian/bluecross/usr/bin/bluecross-server
+	ln -sf bluecross debian/bluecross/usr/bin/bluecross-client
+	ln -sf bluecross debian/bluecross/usr/bin/bluecrossctl
 	# Install udev rules
 	install -D -m 644 packaging/udev/99-bluecross-uinput.rules \
 		debian/bluecross/etc/udev/rules.d/99-bluecross-uinput.rules
 	# Install example config
 	install -D -m 644 bluecross.json \
 		debian/bluecross/usr/share/bluecross/bluecross.json.example
-	# Install systemd user service files
+	# Install systemd user units to the system-wide user-unit dir so they can be
+	# enabled with: systemctl --user enable bluecross-server
 	install -D -m 644 systemd/bluecross-server.service \
-		debian/bluecross/usr/share/bluecross/systemd/bluecross-server.service
+		debian/bluecross/usr/lib/systemd/user/bluecross-server.service
 	install -D -m 644 systemd/bluecross-client.service \
-		debian/bluecross/usr/share/bluecross/systemd/bluecross-client.service
+		debian/bluecross/usr/lib/systemd/user/bluecross-client.service
+
+override_dh_auto_test:
+	# Skip tests during package build
+
+override_dh_auto_clean:
+	# Don't fail if cargo is not available during clean
+	-cargo clean 2>/dev/null || true
+
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info

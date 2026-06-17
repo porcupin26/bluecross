@@ -3,6 +3,8 @@
     "host": "0.0.0.0",
     "port": 12345,
     "edge_threshold": 5,
+    "clipboard_sharing": true,
+    "psk": "CHANGE-ME-shared-secret-min-16-chars",
     "clients": {
       "laptop": "left",
       "desktop2": "right"
@@ -11,6 +13,8 @@
   "client": {
     "server_host": "192.168.1.113",
     "server_port": 12345,
-    "name": "laptop"
+    "name": "laptop",
+    "clipboard_sharing": true,
+    "psk": "CHANGE-ME-shared-secret-min-16-chars"
   }
 }

@@ -1,5 +1,11 @@
 name: Build Packages (Test)
 
+# BlueCross is Linux/Wayland only: input capture/injection uses the kernel
+# evdev/uinput interfaces and clipboard uses wl-clipboard. Windows (.exe) and
+# macOS (.dmg) are NOT supported — the evdev crate does not build off Linux, so
+# no cross-platform build jobs are defined here. Adding them would require
+# entirely new per-OS input backends.
+
 on:
   pull_request:
     branches: [main]
@@ -10,161 +16,130 @@ env:
   PACKAGE_NAME: bluecross
 
 jobs:
+  test:
+    name: Build, lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --release --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Verify binary
+        run: |
+          ./target/release/bluecross --help
+          ./target/release/bluecross server --help
+          ./target/release/bluecross client --help
+
   build-deb:
     name: Test DEB build (${{ matrix.codename }})
+    needs: test
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
-            codename: noble
-            container: ""
-          - os: ubuntu-latest
-            codename: questing
-            container: ubuntu:25.10
-    runs-on: ${{ matrix.os }}
-    container: ${{ matrix.container || null }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+          - codename: bookworm
+            container: debian:12
+          - codename: noble
+            container: ubuntu:24.04
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
 
+    steps:
       - name: Install build dependencies
         run: |
-          if [ -n "${{ matrix.container }}" ]; then
-            apt-get update
-            apt-get install -y \
-              build-essential \
-              debhelper \
-              dh-python \
-              pybuild-plugin-pyproject \
-              python3-all \
-              python3-pip \
-              python3-hatchling \
-              python3-evdev \
-              devscripts \
-              fakeroot
-          else
-            sudo apt-get update
-            sudo apt-get install -y \
-              build-essential \
-              debhelper \
-              dh-python \
-              pybuild-plugin-pyproject \
-              python3-all \
-              python3-pip \
-              python3-hatchling \
-              python3-evdev \
-              devscripts \
-              fakeroot
-          fi
+          apt-get update
+          apt-get install -y build-essential curl debhelper devscripts fakeroot git ca-certificates
 
-      - name: Prepare source directory
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Prepare orig tarball
         run: |
           VERSION=0.1.0
           mkdir -p build
-          tar --exclude='.git' --exclude='build' \
+          tar --exclude='.git' --exclude='build' --exclude='target' \
             --transform "s,^,${PACKAGE_NAME}-${VERSION}/," \
             -czf build/${PACKAGE_NAME}_${VERSION}.orig.tar.gz .
 
       - name: Setup debian directory
         run: |
           cp -r packaging/debian debian
-          chmod +x debian/rules
-          chmod +x debian/postinst debian/postrm
+          chmod +x debian/rules debian/postinst debian/postrm
 
       - name: Build DEB package
         run: |
+          source "$HOME/.cargo/env"
           dpkg-buildpackage -us -uc -b
-          mkdir -p dist
-          mv ../*.deb dist/
-          ls -la dist/
-
-      - name: Test package installation
-        run: |
-          if [ -n "${{ matrix.container }}" ]; then
-            dpkg -i dist/*.deb || apt-get install -f -y
-          else
-            sudo dpkg -i dist/*.deb || sudo apt-get install -f -y
-          fi
-          which bluecross-server
-          which bluecross-client
-          which bluecrossctl
-
-  build-rpm:
-    name: Test RPM build (Fedora)
-    runs-on: ubuntu-latest
-    container:
-      image: fedora:40
-    
-    steps:
-      - name: Install git
-        run: dnf install -y git
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          dnf install -y \
-            rpm-build \
-            rpmdevtools \
-            python3-devel \
-            python3-pip \
-            python3-setuptools \
-            python3-hatchling \
-            python3-evdev
-
-      - name: Setup RPM build environment
-        run: rpmdev-setuptree
-
-      - name: Prepare source tarball
-        run: |
-          VERSION=0.1.0
-          mkdir -p ${PACKAGE_NAME}-${VERSION}
-          cp -r bluecross pyproject.toml README.md bluecross.json \
-            systemd packaging ${PACKAGE_NAME}-${VERSION}/
-          tar -czf ~/rpmbuild/SOURCES/${PACKAGE_NAME}-${VERSION}.tar.gz \
-            ${PACKAGE_NAME}-${VERSION}
-
-      - name: Copy spec file
-        run: cp packaging/rpm/bluecross.spec ~/rpmbuild/SPECS/
-
-      - name: Build RPM package
-        run: |
-          rpmbuild -bb ~/rpmbuild/SPECS/bluecross.spec
-          ls -la ~/rpmbuild/RPMS/noarch/
-
-      - name: Test package installation
-        run: |
-          dnf install -y ~/rpmbuild/RPMS/noarch/*.rpm
-          which bluecross-server
-          which bluecross-client
-          which bluecrossctl
-
-  build-python:
-    name: Test Python build
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install build hatchling
-
-      - name: Build package
-        run: python -m build
+          mkdir -p dist && mv ../*.deb dist/ && ls -la dist/
 
       - name: Test installation
         run: |
-          pip install dist/*.whl
-          which bluecross-server
-          which bluecross-client
-          which bluecrossctl
+          dpkg -i dist/*.deb || apt-get install -f -y
+          bluecross --help
+
+  build-rpm:
+    name: Test RPM build (Fedora ${{ matrix.version }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [40, 41]
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:${{ matrix.version }}
+
+    steps:
+      - name: Install tools
+        run: dnf install -y git rpm-build rpmdevtools gcc util-linux
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Build RPM package
+        run: |
+          source "$HOME/.cargo/env"
+          rpmdev-setuptree
+          VERSION=0.1.0
+          mkdir -p ${PACKAGE_NAME}-${VERSION}
+          cp -r src Cargo.toml Cargo.lock README.md bluecross.json \
+            systemd packaging ${PACKAGE_NAME}-${VERSION}/
+          tar -czf ~/rpmbuild/SOURCES/${PACKAGE_NAME}-${VERSION}.tar.gz ${PACKAGE_NAME}-${VERSION}
+          cp packaging/rpm/bluecross.spec ~/rpmbuild/SPECS/
+          rpmbuild -bb ~/rpmbuild/SPECS/bluecross.spec
+
+      - name: Test installation
+        run: |
+          dnf install -y ~/rpmbuild/RPMS/*/*.rpm
+          bluecross --help

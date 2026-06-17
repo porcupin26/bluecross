@@ -1,19 +1,20 @@
 [Unit]
-Description=BlueCross Client - Keyboard/Mouse Sharing
-Documentation=https://github.com/yourusername/bluecross
+Description=BlueCross Client - Keyboard/Mouse/Clipboard Sharing
+Documentation=https://github.com/porcupin26/bluecross
 After=network.target graphical-session.target
-Wants=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projects/bluecross
-ExecStart=%h/.local/bin/uv run bluecross-client -f -c %h/.config/bluecross/bluecross.json
-Restart=on-failure
-RestartSec=5
+ExecStart=/usr/bin/bluecross client -f -c %h/.config/bluecross/bluecross.json
+Restart=always
+RestartSec=3
 
-# Environment variables for display access
-Environment=DISPLAY=:0
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+# Wayland-only. The user session manager normally exports WAYLAND_DISPLAY and
+# XDG_RUNTIME_DIR into user services; if clipboard sharing cannot reach the
+# compositor, import them explicitly, e.g.:
+#   systemctl --user import-environment WAYLAND_DISPLAY XDG_RUNTIME_DIR
+Environment=PATH=/usr/local/bin:/usr/bin
 
 [Install]
 WantedBy=graphical-session.target

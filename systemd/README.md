@@ -1,60 +1,51 @@
 # BlueCross systemd Service Files
 
-These are systemd user service files for running BlueCross as a background service.
+systemd **user** service units for running BlueCross as a background service.
 
-## Installation
-
-1. Copy the appropriate service file to your user systemd directory:
+When installed from the `.deb`/`.rpm` packages these units are already placed in
+`/usr/lib/systemd/user/`, so you can skip straight to enabling them. If you built
+from source, copy them into place first:
 
 ```bash
-# For server machine:
 mkdir -p ~/.config/systemd/user
-cp bluecross-server.service ~/.config/systemd/user/
-
-# For client machine:
-mkdir -p ~/.config/systemd/user
-cp bluecross-client.service ~/.config/systemd/user/
+cp bluecross-server.service ~/.config/systemd/user/   # server machine
+cp bluecross-client.service ~/.config/systemd/user/   # client machine
 ```
 
-2. Make sure your config file is at `~/.config/bluecross/bluecross.json`, or edit the service file to point to your config location.
+## Enable
 
-3. Reload systemd and enable the service:
+Make sure your config is at `~/.config/bluecross/bluecross.json` (including a
+shared `psk`), then:
 
 ```bash
 systemctl --user daemon-reload
 
-# For server:
-systemctl --user enable bluecross-server
-systemctl --user start bluecross-server
+# Server machine:
+systemctl --user enable --now bluecross-server
 
-# For client:
-systemctl --user enable bluecross-client
-systemctl --user start bluecross-client
+# Client machine:
+systemctl --user enable --now bluecross-client
 ```
 
-## Managing the Service
+## Managing the service
 
 ```bash
-# Check status
 systemctl --user status bluecross-server
-systemctl --user status bluecross-client
-
-# View logs
-journalctl --user -u bluecross-server -f
-journalctl --user -u bluecross-client -f
-
-# Stop service
+journalctl --user -u bluecross-server -f      # follow logs
+systemctl --user restart bluecross-server
 systemctl --user stop bluecross-server
-systemctl --user stop bluecross-client
-
-# Disable auto-start
 systemctl --user disable bluecross-server
-systemctl --user disable bluecross-client
 ```
 
 ## Notes
 
-- These are user services, not system services. They run as your user.
-- Services require a graphical session to be active.
-- Make sure the bluecross commands are in your PATH (installed via pip).
-- On Wayland, you may need additional environment variables for clipboard access.
+- These are **user** services and run as your user (needed for clipboard + the
+  Wayland session). Your user must be in the `input` group (see the README).
+- Units use `Restart=always`. When you upgrade the `.deb`/`.rpm` package, any
+  running BlueCross user service is restarted automatically by the package
+  scripts, so the new binary takes effect without manual intervention.
+- Wayland-only. The user manager normally exports `WAYLAND_DISPLAY` and
+  `XDG_RUNTIME_DIR`; if clipboard sharing can't reach the compositor, run
+  `systemctl --user import-environment WAYLAND_DISPLAY XDG_RUNTIME_DIR`.
+- To start at boot without an interactive login, enable lingering:
+  `sudo loginctl enable-linger $USER`.

@@ -1,5 +1,10 @@
 name: Build and Release Packages
 
+# BlueCross is Linux/Wayland only (kernel evdev/uinput + wl-clipboard). Windows
+# (.exe) and macOS (.dmg) targets are intentionally not built: the evdev crate
+# does not compile off Linux. Released artifacts: a portable static binary, a
+# portable tarball, and native .deb / .rpm packages.
+
 on:
   push:
     tags:
@@ -15,29 +20,13 @@ env:
   PACKAGE_NAME: bluecross
 
 jobs:
-  build-deb:
-    name: Build DEB packages
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            codename: jammy
-            container: ""
-          - os: ubuntu-24.04
-            codename: noble
-            container: ""
-          - os: ubuntu-latest
-            codename: questing
-            container: ubuntu:25.10
-    runs-on: ${{ matrix.os }}
-    container: ${{ matrix.container || null }}
-    
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
+      - id: v
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
@@ -45,258 +34,183 @@ jobs:
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           fi
 
+  build-static:
+    name: Build static binary (musl)
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build
+        run: cargo build --release --target x86_64-unknown-linux-musl
+      - name: Stage artifacts
+        run: |
+          mkdir -p dist
+          cp target/x86_64-unknown-linux-musl/release/bluecross dist/bluecross-linux-x86_64
+          chmod +x dist/bluecross-linux-x86_64
+          # Portable tarball: binary + example config + systemd units + docs.
+          STAGE="bluecross-${{ needs.version.outputs.version }}-linux-x86_64"
+          mkdir -p "$STAGE"
+          cp dist/bluecross-linux-x86_64 "$STAGE/bluecross"
+          cp bluecross.json "$STAGE/bluecross.json.example"
+          cp README.md "$STAGE/"
+          cp -r systemd "$STAGE/"
+          cp packaging/udev/99-bluecross-uinput.rules "$STAGE/"
+          tar -czf "dist/${STAGE}.tar.gz" "$STAGE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: static
+          path: dist/*
+
+  build-deb:
+    name: Build DEB (${{ matrix.codename }})
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - codename: bookworm
+            container: debian:12
+          - codename: noble
+            container: ubuntu:24.04
+          - codename: jammy
+            container: ubuntu:22.04
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    steps:
       - name: Install build dependencies
         run: |
-          if [ -n "${{ matrix.container }}" ]; then
-            apt-get update
-            apt-get install -y \
-              build-essential \
-              debhelper \
-              dh-python \
-              pybuild-plugin-pyproject \
-              python3-all \
-              python3-pip \
-              python3-hatchling \
-              python3-evdev \
-              devscripts \
-              fakeroot
-          else
-            sudo apt-get update
-            sudo apt-get install -y \
-              build-essential \
-              debhelper \
-              dh-python \
-              pybuild-plugin-pyproject \
-              python3-all \
-              python3-pip \
-              python3-hatchling \
-              python3-evdev \
-              devscripts \
-              fakeroot
-          fi
-
-      - name: Prepare source directory
+          apt-get update
+          apt-get install -y build-essential curl debhelper devscripts fakeroot git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
         run: |
-          VERSION=${{ steps.version.outputs.version }}
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Prepare orig tarball
+        run: |
+          VERSION=${{ needs.version.outputs.version }}
           mkdir -p build
-          # Create source tarball
-          tar --exclude='.git' --exclude='build' \
+          tar --exclude='.git' --exclude='build' --exclude='target' \
             --transform "s,^,${PACKAGE_NAME}-${VERSION}/," \
             -czf build/${PACKAGE_NAME}_${VERSION}.orig.tar.gz .
-
       - name: Setup debian directory
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          # Copy debian packaging files
+          VERSION=${{ needs.version.outputs.version }}
           cp -r packaging/debian debian
-          # Update changelog with current version
           sed -i "s/0.1.0-1/${VERSION}-1/g" debian/changelog
           sed -i "s/unstable/${{ matrix.codename }}/g" debian/changelog
-          # Make scripts executable
-          chmod +x debian/rules
-          chmod +x debian/postinst debian/postrm
-
+          chmod +x debian/rules debian/postinst debian/postrm
       - name: Build DEB package
         run: |
+          source "$HOME/.cargo/env"
           dpkg-buildpackage -us -uc -b
           mkdir -p dist
-          mv ../*.deb dist/
-
-      - name: Rename package with distro info
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          cd dist
-          for f in *.deb; do
-            newname="${f%.deb}_${{ matrix.codename }}.deb"
-            mv "$f" "$newname"
+          for f in ../*.deb; do
+            base=$(basename "$f" .deb)
+            mv "$f" "dist/${base}_${{ matrix.codename }}.deb"
           done
-
-      - name: Upload DEB artifact
-        uses: actions/upload-artifact@v4
+          ls -la dist/
+      - uses: actions/upload-artifact@v4
         with:
           name: deb-${{ matrix.codename }}
           path: dist/*.deb
 
   build-rpm:
-    name: Build RPM packages
+    name: Build RPM (Fedora ${{ matrix.version_id }})
+    needs: version
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            distro: fedora
-            version: 39
-          - os: ubuntu-latest
-            distro: fedora
-            version: 40
-    runs-on: ${{ matrix.os }}
+        version_id: [40, 41]
+    runs-on: ubuntu-latest
     container:
-      image: fedora:${{ matrix.version }}
-    
+      image: fedora:${{ matrix.version_id }}
     steps:
-      - name: Install git
-        run: dnf install -y git
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
+      - name: Install tools
+        run: dnf install -y git rpm-build rpmdevtools gcc util-linux
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Install build dependencies
-        run: |
-          dnf install -y \
-            rpm-build \
-            rpmdevtools \
-            python3-devel \
-            python3-pip \
-            python3-setuptools \
-            python3-hatchling \
-            python3-evdev
-
-      - name: Setup RPM build environment
-        run: |
-          rpmdev-setuptree
-
-      - name: Prepare source tarball
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          mkdir -p ${PACKAGE_NAME}-${VERSION}
-          # Copy source files
-          cp -r bluecross pyproject.toml README.md bluecross.json \
-            systemd packaging ${PACKAGE_NAME}-${VERSION}/
-          # Create tarball
-          tar -czf ~/rpmbuild/SOURCES/${PACKAGE_NAME}-${VERSION}.tar.gz \
-            ${PACKAGE_NAME}-${VERSION}
-
-      - name: Update spec version
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          sed -i "s/^Version:.*/Version:        ${VERSION}/" packaging/rpm/bluecross.spec
-          cp packaging/rpm/bluecross.spec ~/rpmbuild/SPECS/
-
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Build RPM package
         run: |
+          source "$HOME/.cargo/env"
+          rpmdev-setuptree
+          VERSION=${{ needs.version.outputs.version }}
+          sed -i "s/^Version:.*/Version:        ${VERSION}/" packaging/rpm/bluecross.spec
+          mkdir -p ${PACKAGE_NAME}-${VERSION}
+          cp -r src Cargo.toml Cargo.lock README.md bluecross.json \
+            systemd packaging ${PACKAGE_NAME}-${VERSION}/
+          tar -czf ~/rpmbuild/SOURCES/${PACKAGE_NAME}-${VERSION}.tar.gz ${PACKAGE_NAME}-${VERSION}
+          cp packaging/rpm/bluecross.spec ~/rpmbuild/SPECS/
           rpmbuild -bb ~/rpmbuild/SPECS/bluecross.spec
-          mkdir -p dist
-          cp ~/rpmbuild/RPMS/noarch/*.rpm dist/
-
-      - name: Rename package with distro info
-        run: |
-          cd dist
-          for f in *.rpm; do
-            newname="${f%.rpm}.${{ matrix.distro }}${{ matrix.version }}.rpm"
-            mv "$f" "$newname"
-          done
-
-      - name: Upload RPM artifact
-        uses: actions/upload-artifact@v4
+          mkdir -p dist && cp ~/rpmbuild/RPMS/*/*.rpm dist/
+      - uses: actions/upload-artifact@v4
         with:
-          name: rpm-${{ matrix.distro }}${{ matrix.version }}
+          name: rpm-fedora${{ matrix.version_id }}
           path: dist/*.rpm
-
-  build-python:
-    name: Build Python package
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install build hatchling
-
-      - name: Build package
-        run: python -m build
-
-      - name: Upload Python artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-package
-          path: dist/*
 
   release:
     name: Create GitHub Release
-    needs: [build-deb, build-rpm, build-python]
+    needs: [version, build-static, build-deb, build-rpm]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-
-      - name: Prepare release files
+      - name: Collect release files
         run: |
           mkdir -p release
-          find artifacts -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.whl" -o -name "*.tar.gz" \) \
+          find artifacts -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' -o -name 'bluecross-linux-x86_64' \) \
             -exec cp {} release/ \;
-          ls -la release/
-
-      - name: Generate checksums
-        run: |
-          cd release
-          sha256sum * > SHA256SUMS.txt
-
-      - name: Get version
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
+          cd release && sha256sum * > SHA256SUMS.txt && ls -la
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          name: BlueCross v${{ steps.version.outputs.version }}
+          name: BlueCross v${{ needs.version.outputs.version }}
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            release/*
+          files: release/*
           body: |
-            ## Installation
+            BlueCross is **Linux/Wayland only** (kernel evdev/uinput + wl-clipboard).
 
-            ### Debian/Ubuntu
+            > Security: the network link is encrypted and mutually authenticated
+            > with a pre-shared key. Set the same random `psk` (>= 16 chars) on the
+            > server and every client. Generate one with:
+            > `head -c 32 /dev/urandom | base64`
+
+            ## Install
+
+            ### Portable static binary (any x86_64 Linux)
             ```bash
-            # Download the appropriate .deb file for your distribution
-            sudo dpkg -i bluecross_${{ steps.version.outputs.version }}-1_all_<codename>.deb
-            sudo apt-get install -f  # Install dependencies if needed
+            curl -L -o bluecross ${{ github.server_url }}/${{ github.repository }}/releases/download/v${{ needs.version.outputs.version }}/bluecross-linux-x86_64
+            chmod +x bluecross && sudo mv bluecross /usr/local/bin/
+            sudo ln -sf /usr/local/bin/bluecross /usr/local/bin/bluecross-server
+            sudo ln -sf /usr/local/bin/bluecross /usr/local/bin/bluecross-client
+            sudo ln -sf /usr/local/bin/bluecross /usr/local/bin/bluecrossctl
+            ```
+
+            ### Debian / Ubuntu
+            ```bash
+            sudo apt install ./bluecross_${{ needs.version.outputs.version }}-1_amd64_<codename>.deb
             ```
 
             ### Fedora
             ```bash
-            # Download the appropriate .rpm file for your Fedora version
-            sudo dnf install bluecross-${{ steps.version.outputs.version }}-1.noarch.<distro>.rpm
+            sudo dnf install ./bluecross-${{ needs.version.outputs.version }}-1.*.rpm
             ```
 
-            ### Python (pip)
-            ```bash
-            pip install bluecross-${{ steps.version.outputs.version }}.tar.gz
-            # or
-            pip install bluecross-${{ steps.version.outputs.version }}-py3-none-any.whl
-            ```
-
-            ### Post-installation
-            After installing, add your user to the `input` group:
-            ```bash
-            sudo usermod -aG input $USER
-            ```
-            Then log out and back in for the change to take effect.
-
-            See the [README](https://github.com/kzapolski/bluecross#readme) for configuration and usage instructions.
+            Then add yourself to the `input` group and set up a config — see the
+            [README](${{ github.server_url }}/${{ github.repository }}#readme).

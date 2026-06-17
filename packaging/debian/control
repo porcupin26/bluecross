@@ -1,32 +1,28 @@
 Source: bluecross
 Section: utils
 Priority: optional
-Maintainer: Porcupin
-Build-Depends: debhelper-compat (= 13),
-               dh-python,
-               pybuild-plugin-pyproject,
-               python3-all,
-               python3-hatchling,
-               python3-pip
+Maintainer: Porcupin <porcupin26@proton.me>
+Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.6.2
-Homepage: https://github.com/kzapolski/bluecross
+Homepage: https://github.com/porcupin26/bluecross
 Rules-Requires-Root: no
 
 Package: bluecross
-Architecture: all
-Depends: ${python3:Depends},
-         ${misc:Depends},
-         python3 (>= 3.10),
-         python3-evdev (>= 1.6.0)
-Recommends: wl-clipboard | xclip | xsel
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
+Recommends: wl-clipboard
 Suggests: systemd
-Description: Share keyboard, mouse and clipboard across Linux computers
- BlueCross allows sharing a single keyboard and mouse across multiple Linux
- computers over the network, similar to Barrier/Synergy but designed to work
- on both X11 and Wayland.
+Description: Share keyboard, mouse and clipboard across Wayland computers
+ BlueCross shares a single keyboard and mouse across multiple Linux computers
+ over the network, similar to Barrier/Synergy. It is Wayland-only and uses the
+ kernel evdev/uinput interfaces for input capture and injection.
+ .
+ The network link is encrypted and mutually authenticated with a pre-shared key
+ (Noise protocol), so keystrokes and clipboard contents are protected in transit.
  .
  Features include:
   - Seamless mouse cursor switching at screen edges
-  - Clipboard sharing between machines
-  - Support for Wayland and X11
+  - Encrypted, PSK-authenticated transport
+  - Clipboard sharing between machines (wl-clipboard)
   - Low-latency input forwarding

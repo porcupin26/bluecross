@@ -1,10 +1,14 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
+# Build artifacts
+/target/
 build/
 dist/
-wheels/
-*.egg-info
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Claude
 .claude
-# Virtual environments
-.venv
