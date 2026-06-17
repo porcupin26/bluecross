@@ -120,11 +120,14 @@ async fn apply_message(
             (0, 0)
         }
         MessageType::ClipboardData => {
-            if state.config.clipboard_sharing {
-                if let Some(content) = msg.payload.get("content").and_then(|v| v.as_str()) {
-                    log::debug!("Received clipboard");
-                    clipboard.set(content).await;
-                }
+            let content = msg
+                .payload
+                .get("content")
+                .and_then(|v| v.as_str())
+                .filter(|_| state.config.clipboard_sharing);
+            if let Some(content) = content {
+                log::debug!("Received clipboard");
+                clipboard.set(content).await;
             }
             (0, 0)
         }

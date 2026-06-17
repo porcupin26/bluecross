@@ -248,22 +248,25 @@ impl Server {
                 }
             }
             MessageType::ClipboardData => {
-                if self.config.clipboard_sharing {
-                    if let Some(content) = msg.payload.get("content").and_then(|v| v.as_str()) {
-                        log::debug!("Received clipboard from {}", client_name);
-                        // Applying the value records it as last-seen, so the
-                        // local watcher will not rebroadcast it.
-                        self.clipboard.set(content).await;
-                        let broadcast = Message::clipboard_data(content);
-                        let others: Vec<String> = self
-                            .clients
-                            .keys()
-                            .filter(|n| n.as_str() != client_name)
-                            .cloned()
-                            .collect();
-                        for name in others {
-                            self.send_to(&name, broadcast.clone());
-                        }
+                let content = msg
+                    .payload
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .filter(|_| self.config.clipboard_sharing);
+                if let Some(content) = content {
+                    log::debug!("Received clipboard from {}", client_name);
+                    // Applying the value records it as last-seen, so the
+                    // local watcher will not rebroadcast it.
+                    self.clipboard.set(content).await;
+                    let broadcast = Message::clipboard_data(content);
+                    let others: Vec<String> = self
+                        .clients
+                        .keys()
+                        .filter(|n| n.as_str() != client_name)
+                        .cloned()
+                        .collect();
+                    for name in others {
+                        self.send_to(&name, broadcast.clone());
                     }
                 }
             }
