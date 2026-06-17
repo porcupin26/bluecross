@@ -50,11 +50,13 @@ install -D -m 644 packaging/udev/99-bluecross-uinput.rules \
 install -D -m 644 bluecross.json \
     %{buildroot}%{_datadir}/%{name}/bluecross.json.example
 
-# Install systemd user units to the system-wide user-unit dir
+# Install systemd user units to the system-wide user-unit dir.
+# Hardcode the path: %{_userunitdir} is only defined where systemd-rpm-macros
+# is present (e.g. not on Fedora 40), and user units always live here.
 install -D -m 644 systemd/bluecross-server.service \
-    %{buildroot}%{_userunitdir}/bluecross-server.service
+    %{buildroot}/usr/lib/systemd/user/bluecross-server.service
 install -D -m 644 systemd/bluecross-client.service \
-    %{buildroot}%{_userunitdir}/bluecross-client.service
+    %{buildroot}/usr/lib/systemd/user/bluecross-client.service
 
 # Install documentation
 install -D -m 644 README.md %{buildroot}%{_docdir}/%{name}/README.md
@@ -115,8 +117,8 @@ udevadm control --reload-rules || :
 %{_bindir}/bluecross-client
 %{_bindir}/bluecrossctl
 /usr/lib/udev/rules.d/99-bluecross-uinput.rules
-%{_userunitdir}/bluecross-server.service
-%{_userunitdir}/bluecross-client.service
+/usr/lib/systemd/user/bluecross-server.service
+/usr/lib/systemd/user/bluecross-client.service
 %{_datadir}/%{name}/
 
 %changelog

@@ -108,7 +108,6 @@ jobs:
           chmod +x debian/rules debian/postinst debian/postrm
       - name: Build DEB package
         run: |
-          source "$HOME/.cargo/env"
           dpkg-buildpackage -us -uc -b
           mkdir -p dist
           for f in ../*.deb; do

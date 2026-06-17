@@ -96,7 +96,6 @@ jobs:
 
       - name: Build DEB package
         run: |
-          source "$HOME/.cargo/env"
           dpkg-buildpackage -us -uc -b
           mkdir -p dist && mv ../*.deb dist/ && ls -la dist/
 
