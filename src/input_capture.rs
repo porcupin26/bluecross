@@ -190,7 +190,7 @@ async fn read_device_events(
 pub fn grab_devices(fds: &[i32]) {
     for &fd in fds {
         unsafe {
-            libc::ioctl(fd, EVIOCGRAB, 1 as libc::c_int);
+            libc::ioctl(fd, EVIOCGRAB as libc::Ioctl, 1 as libc::c_int);
         }
     }
 }
@@ -198,7 +198,7 @@ pub fn grab_devices(fds: &[i32]) {
 pub fn ungrab_devices(fds: &[i32]) {
     for &fd in fds {
         unsafe {
-            libc::ioctl(fd, EVIOCGRAB, 0 as libc::c_int);
+            libc::ioctl(fd, EVIOCGRAB as libc::Ioctl, 0 as libc::c_int);
         }
     }
 }
