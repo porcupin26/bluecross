@@ -223,6 +223,9 @@ async fn run_async(config: ClientConfig) -> anyhow::Result<()> {
     );
 
     let stream = TcpStream::connect((&*config.server_host, config.server_port)).await?;
+    if let Err(e) = stream.set_nodelay(true) {
+        log::debug!("Could not set TCP_NODELAY: {}", e);
+    }
     let ka = TcpKeepalive::new()
         .with_time(Duration::from_secs(15))
         .with_interval(Duration::from_secs(5))

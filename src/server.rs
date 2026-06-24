@@ -330,6 +330,9 @@ async fn handle_new_connection(
 ) -> anyhow::Result<()> {
     log::info!("Client connecting from {}", addr);
     apply_keepalive(&stream);
+    if let Err(e) = stream.set_nodelay(true) {
+        log::debug!("Could not set TCP_NODELAY: {}", e);
+    }
 
     // Encrypted, mutually-authenticated channel (fails here on a wrong PSK).
     let (secure_reader, secure_writer) = match tokio::time::timeout(
